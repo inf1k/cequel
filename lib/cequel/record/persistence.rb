@@ -185,10 +185,7 @@ module Cequel
       #
       def save(options = {})
         options.assert_valid_keys(:consistency, :ttl, :timestamp)
-        if new_record? then create(options)
-        else update(options)
-        end
-        @new_record = false
+        new_record? ? create(options) : update(options)
         true
       end
 
@@ -274,17 +271,28 @@ module Cequel
 
       def create(options = {})
         assert_keys_present!
-        metal_scope
-          .insert(attributes.reject { |attr, value| value.nil? }, options)
-        loaded!
-        persisted!
+
+        connection.batch do |batch|
+          batch.on_complete do
+            notify_commit_changes
+            loaded!
+            persisted!
+          end
+
+          metal_scope.insert(attributes_for_create, options)
+          @new_record = false
+        end
       end
       instrument :create, data: ->(rec) { {table_name: rec.table_name} }
 
       def update(options = {})
         assert_keys_present!
         connection.batch do |batch|
-          batch.on_complete { @updater, @deleter = nil }
+          batch.on_complete do
+            @updater, @deleter = nil
+            notify_commit_changes
+          end
+
           updater.execute(options)
           deleter.execute(options.except(:ttl))
         end
@@ -300,6 +308,11 @@ module Cequel
         raise ArgumentError, "Can't get deleter for new record" if new_record?
         @deleter ||= Metal::Deleter.new(metal_scope)
       end
+
+      def notify_commit_changes
+        true
+      end
+
 
       private
 

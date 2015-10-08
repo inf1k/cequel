@@ -27,6 +27,7 @@ module Cequel
       included do
         extend ActiveModel::Callbacks
         define_model_callbacks :save, :create, :update, :destroy
+        define_model_callbacks :commit, only: :after
       end
 
       # (see Persistence#save)
@@ -51,6 +52,10 @@ module Cequel
 
       def update(*)
         run_callbacks(:update) { super }
+      end
+
+      def notify_commit_changes
+        run_callbacks(:commit) { super }
       end
     end
   end

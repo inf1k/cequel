@@ -17,7 +17,17 @@ describe Cequel::Record::Callbacks do
       end
     end
 
+    def self.track_after_callbacks(*events)
+      events.each do |event|
+        callback_name = :"after_#{event}"
+        __send__(callback_name) do |post|
+          post.executed_callbacks << callback_name
+        end
+      end
+    end
+
     track_callbacks :save, :create, :update, :destroy
+    track_after_callbacks :commit
 
     def executed_callbacks
       @executed_callbacks ||= []
@@ -68,6 +78,7 @@ describe Cequel::Record::Callbacks do
     before { new_post.save! }
     subject { new_post.executed_callbacks }
 
+
     it { is_expected.to include(:before_save) }
     it { is_expected.to include(:after_save) }
     it { is_expected.to include(:before_create) }
@@ -76,6 +87,7 @@ describe Cequel::Record::Callbacks do
     it { is_expected.not_to include(:after_update) }
     it { is_expected.not_to include(:before_destroy) }
     it { is_expected.not_to include(:after_destroy) }
+    it { is_expected.to include(:after_commit) }
   end
 
   context 'on update' do
@@ -90,6 +102,7 @@ describe Cequel::Record::Callbacks do
     it { is_expected.to include(:after_update) }
     it { is_expected.not_to include(:before_destroy) }
     it { is_expected.not_to include(:after_destroy) }
+    it { is_expected.to include(:after_commit) }
   end
 
   context 'on destroy' do
